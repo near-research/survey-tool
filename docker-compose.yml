@@ -1,0 +1,63 @@
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: near_forms
+      POSTGRES_USER: near_forms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in your .env file}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U near_forms"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Database API (Rust/Axum)
+  db-api:
+    build:
+      context: ./db-api
+      dockerfile: Dockerfile
+    ports:
+      - "4001:4001"
+    environment:
+      DATABASE_URL: postgres://near_forms:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in your .env file}@postgres:5432/near_forms
+      API_PORT: 4001
+      API_SECRET: ${API_SECRET:?API_SECRET must be set in your .env file}
+      FORM_CREATOR_ID: ${FORM_CREATOR_ID:?FORM_CREATOR_ID must be set in your .env file}
+      FORM_TITLE: ${FORM_TITLE:-My Form}
+      RUST_LOG: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Web UI (Next.js)
+  web-ui:
+    build:
+      context: ./web-ui
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_NETWORK_ID: mainnet
+        NEXT_PUBLIC_PROJECT_ID: ${NEXT_PUBLIC_PROJECT_ID:-your-account.near/near-forms}
+        NEXT_PUBLIC_OUTLAYER_CONTRACT: ${NEXT_PUBLIC_OUTLAYER_CONTRACT:-outlayer.near}
+        NEXT_PUBLIC_SECRETS_PROFILE: ${NEXT_PUBLIC_SECRETS_PROFILE:-default}
+        NEXT_PUBLIC_SECRETS_ACCOUNT_ID: ${NEXT_PUBLIC_SECRETS_ACCOUNT_ID:-}
+        NEXT_PUBLIC_USE_SECRETS: ${NEXT_PUBLIC_USE_SECRETS:-true}
+        NEXT_PUBLIC_FORM_ID: ${FORM_ID:?FORM_ID must be set in your .env file}
+        NEXT_PUBLIC_DATABASE_API_URL: ${NEXT_PUBLIC_DATABASE_API_URL:-http://localhost:4001}
+        NEXT_PUBLIC_OUTLAYER_DEPOSIT_NEAR: ${NEXT_PUBLIC_OUTLAYER_DEPOSIT_NEAR:-0.025}
+        NEXT_PUBLIC_MASTER_PUBLIC_KEY: ${NEXT_PUBLIC_MASTER_PUBLIC_KEY:?NEXT_PUBLIC_MASTER_PUBLIC_KEY must be set in your .env file}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db-api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

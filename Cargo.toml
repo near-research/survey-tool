@@ -1,0 +1,4 @@
+[workspace]
+members = ["wasi-near-forms-ark"]
+exclude = ["db-api"]
+resolver = "2"

@@ -1,0 +1,3 @@
+[target.wasm32-wasip2]
+# Use default stack size (~1MB) — module processes at most ~50 KB of answers
+# 32 MB was a vestige from wasi-near-email-ark predecessor

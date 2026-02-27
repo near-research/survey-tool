@@ -1,0 +1,577 @@
+[
+  {
+    "id": "q1",
+    "section": 2,
+    "section_title": "Persona Identification",
+    "label": "How would you describe your primary relationship with NEAR?",
+    "type": "single_select",
+    "options": [
+      "I operate a validator node",
+      "I stake NEAR to validators (not my own)",
+      "I hold NEAR in liquid staking (Metapool, Linear, etc.)",
+      "I hold NEAR but don't stake it",
+      "I work for a project building on NEAR",
+      "Other"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q2",
+    "section": 2,
+    "section_title": "Persona Identification",
+    "label": "When did you first acquire NEAR?",
+    "type": "single_select",
+    "options": [
+      "Before mainnet launch (pre-2020)",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025 or later"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q3",
+    "section": 2,
+    "section_title": "Persona Identification",
+    "label": "How did you first acquire NEAR? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "Purchased on an exchange",
+      "Received from a project grant or bounty",
+      "Earned as validator/staking rewards",
+      "Team/investor allocation",
+      "Airdrop",
+      "Other"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q4",
+    "section": 3,
+    "section_title": "Awareness & Knowledge",
+    "label": "Before this survey, had you heard of House of Stake (HoS)?",
+    "type": "single_select",
+    "options": [
+      "Yes, I know what it is and how it works",
+      "Yes, but I'm not sure what it does",
+      "No, I haven't heard of it",
+      "Not sure"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q5",
+    "section": 3,
+    "section_title": "Awareness & Knowledge",
+    "label": "Are you aware that you can lock NEAR to receive veNEAR and participate in governance?",
+    "type": "single_select",
+    "options": [
+      "Yes, and I've done it",
+      "Yes, but I haven't done it",
+      "No, I wasn't aware",
+      "Not sure what this means"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q6",
+    "section": 3,
+    "section_title": "Awareness & Knowledge",
+    "label": "Can you name any active delegates in House of Stake?",
+    "type": "single_select",
+    "options": [
+      "Yes, I can name them",
+      "No"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q7",
+    "section": 4,
+    "section_title": "Current Behavior",
+    "label": "Where is most of your NEAR currently?",
+    "type": "single_select",
+    "options": [
+      "Locked in veNEAR (House of Stake)",
+      "Staked with validators directly",
+      "In liquid staking (Metapool, Linear, etc.)",
+      "In my wallet, not staked",
+      "On an exchange",
+      "Combination / spread across multiple"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q7b",
+    "section": 4,
+    "section_title": "Current Behavior",
+    "label": "Have you ever unlocked NEAR from veNEAR?",
+    "type": "single_select",
+    "options": [
+      "Yes, fully unlocked",
+      "Yes, partially unlocked",
+      "No",
+      "I've never locked"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q7",
+      "value": "Locked in veNEAR (House of Stake)"
+    }
+  },
+  {
+    "id": "q8",
+    "section": 4,
+    "section_title": "Current Behavior",
+    "label": "If you stake NEAR, what's most important to you? (rank top 3)",
+    "type": "rank",
+    "options": [
+      "Highest yield / APY",
+      "Liquidity (ability to withdraw quickly)",
+      "Supporting specific validators",
+      "Simplicity / ease of use",
+      "Participating in governance",
+      "Security / trust in the protocol"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q7",
+      "values": [
+        "Locked in veNEAR (House of Stake)",
+        "Staked with validators directly",
+        "In liquid staking (Metapool, Linear, etc.)",
+        "Combination / spread across multiple"
+      ]
+    }
+  },
+  {
+    "id": "q8b",
+    "section": 4,
+    "section_title": "Current Behavior",
+    "label": "Have you used liquid staking protocols (Metapool, Linear, etc.) for any of your NEAR?",
+    "type": "single_select",
+    "options": [
+      "Yes, I use them for some of my NEAR",
+      "No, I prefer staking directly with validators",
+      "No, I don't trust liquid staking protocols",
+      "No, I'm not familiar with them"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q1",
+      "values": [
+        "I operate a validator node",
+        "I stake NEAR to validators (not my own)"
+      ]
+    }
+  },
+  {
+    "id": "q9",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "Have you ever started the process of locking NEAR for veNEAR but stopped before completing?",
+    "type": "single_select",
+    "options": [
+      "Yes",
+      "No",
+      "I've never tried"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q10",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "What caused you to stop? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "The process was confusing or too technical",
+      "I changed my mind about the lock-up period",
+      "I had a wallet or technical issue",
+      "I decided to stake elsewhere instead",
+      "I wasn't sure it was worth it",
+      "Other"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q9",
+      "value": "Yes"
+    }
+  },
+  {
+    "id": "q11",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "In the past year, have you ever needed quick access to staked or locked crypto funds (on any chain)?",
+    "type": "single_select",
+    "options": [
+      "Yes, and it was a problem because of lock-up periods",
+      "Yes, but I was able to access them in time",
+      "No, I haven't needed quick access"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q11b",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "How much time do you currently spend on crypto governance activities (any chain) per month?",
+    "type": "single_select",
+    "options": [
+      "None",
+      "Less than 30 minutes",
+      "30 minutes to 2 hours",
+      "2-5 hours",
+      "More than 5 hours"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q12",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "Did you participate in NEAR governance before House of Stake (e.g., NDC)?",
+    "type": "single_select",
+    "options": [
+      "Yes",
+      "No",
+      "I'm not aware of previous governance systems"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q12b",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "How would you describe that experience?",
+    "type": "single_select",
+    "options": [
+      "Positive \u2014 I found it valuable",
+      "Mixed \u2014 some good, some frustrating",
+      "Negative \u2014 I was disappointed"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q12",
+      "value": "Yes"
+    }
+  },
+  {
+    "id": "q13",
+    "section": 5,
+    "section_title": "Past Experience & Behavior",
+    "label": "What was the main issue?",
+    "type": "open_text",
+    "options": null,
+    "optional": true,
+    "show_if": {
+      "question_id": "q12b",
+      "values": [
+        "Mixed \u2014 some good, some frustrating",
+        "Negative \u2014 I was disappointed"
+      ]
+    }
+  },
+  {
+    "id": "q14",
+    "section": 6,
+    "section_title": "Confidence & Trust",
+    "label": "How does your confidence in House of Stake compare to your confidence in previous NEAR governance systems?",
+    "type": "single_select",
+    "options": [
+      "More confident in House of Stake",
+      "About the same",
+      "Less confident in House of Stake",
+      "I didn't participate in previous systems",
+      "Not sure"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q14b",
+    "section": 6,
+    "section_title": "Confidence & Trust",
+    "label": "Have you reviewed any security audits or documentation for the veNEAR contracts?",
+    "type": "single_select",
+    "options": [
+      "Yes, and I'm satisfied with what I saw",
+      "Yes, but I still have concerns",
+      "No, but I'd want to before locking significant funds",
+      "No, I haven't thought about it"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q15",
+    "section": 6,
+    "section_title": "Confidence & Trust",
+    "label": "Which of the following have you experienced or considered? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "I've had to report crypto staking/locking activity on my taxes",
+      "I've consulted a tax professional about crypto governance participation",
+      "My organization has policies about on-chain governance participation",
+      "I've needed to access staked funds on short notice for personal or business reasons",
+      "None of these apply"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q15b",
+    "section": 6,
+    "section_title": "Confidence & Trust",
+    "label": "Does your organization have a formal policy on participating in on-chain governance?",
+    "type": "single_select",
+    "options": [
+      "Yes, and it prohibits or restricts participation",
+      "Yes, and it allows participation",
+      "No formal policy",
+      "Not applicable / individual holder",
+      "Prefer not to say"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q15",
+      "values": [
+        "My organization has policies about on-chain governance participation"
+      ]
+    }
+  },
+  {
+    "id": "q16",
+    "section": 7,
+    "section_title": "Proposal Interest",
+    "label": "Have you ever voted on a governance proposal (on any blockchain)?",
+    "type": "single_select",
+    "options": [
+      "Yes, regularly",
+      "Yes, occasionally",
+      "Yes, once or twice",
+      "No"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q16b",
+    "section": 7,
+    "section_title": "Proposal Interest",
+    "label": "What types of decisions have you voted on or would vote on? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "Funding decisions (treasury allocations, grants)",
+      "Protocol upgrades and technical decisions",
+      "Economic policy (inflation, staking rewards)",
+      "Ecosystem partnerships and integrations",
+      "Delegate compensation and governance structure",
+      "I don't vote on governance proposals"
+    ],
+    "optional": true,
+    "show_if": {
+      "question_id": "q16",
+      "values": [
+        "Yes, regularly",
+        "Yes, occasionally",
+        "Yes, once or twice"
+      ]
+    }
+  },
+  {
+    "id": "q17",
+    "section": 8,
+    "section_title": "Rewards & Incentives",
+    "label": "Have you claimed veNEAR rewards?",
+    "type": "single_select",
+    "options": [
+      "Yes, I claim regularly",
+      "Yes, I've claimed once or twice",
+      "No, but I know I have unclaimed rewards",
+      "No, I didn't know I had rewards to claim",
+      "Not applicable \u2014 I don't have veNEAR"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q18",
+    "section": 9,
+    "section_title": "Delegate Relationship",
+    "label": "If you were to lock veNEAR, how would you prefer to participate?",
+    "type": "single_select",
+    "options": [
+      "Delegate to someone who shares my values and will vote on my behalf",
+      "Self-delegate and vote myself on proposals I care about",
+      "Self-delegate and vote on everything myself",
+      "I'm not sure"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q19",
+    "section": 9,
+    "section_title": "Delegate Relationship",
+    "label": "What would make you trust a delegate with your voting power? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "Track record of voting participation",
+      "Alignment with my values/priorities",
+      "Transparency about their voting rationale",
+      "Personal connection or reputation in the community",
+      "Professional governance experience",
+      "Nothing \u2014 I wouldn't delegate"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q20",
+    "section": 9,
+    "section_title": "Delegate Relationship",
+    "label": "Do you know any delegates personally or by reputation?",
+    "type": "single_select",
+    "options": [
+      "Yes, I know delegates I would trust",
+      "Yes, but I don't know if I'd trust them with my vote",
+      "No, I don't know any delegates",
+      "Not applicable \u2014 I would self-delegate"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q21",
+    "section": 10,
+    "section_title": "Current Tools & Habits",
+    "label": "How do you currently stay informed about governance proposals (on any chain)? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "I follow governance forums/Discord",
+      "I get notifications from the protocol",
+      "I check periodically when I remember",
+      "A delegate or friend keeps me informed",
+      "I use a tool or service to track proposals",
+      "I don't stay informed \u2014 it's too much to follow",
+      "Not applicable \u2014 I don't participate in governance"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q21b",
+    "section": 10,
+    "section_title": "Current Tools & Habits",
+    "label": "How do you stay informed about NEAR ecosystem news? (select all that apply)",
+    "type": "multi_select",
+    "options": [
+      "Twitter/X",
+      "Discord servers",
+      "Telegram groups",
+      "Newsletter subscriptions",
+      "NEAR blog/official announcements",
+      "AI summaries or news aggregators (e.g., ChatGPT, Perplexity)",
+      "My AI agent keeps me informed (e.g., Clawdbot)",
+      "Friends or colleagues share relevant updates",
+      "I don't actively follow \u2014 too much to keep up with"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q21c",
+    "section": 10,
+    "section_title": "Current Tools & Habits",
+    "label": "What level of AI assistance would you be comfortable with for governance?",
+    "type": "single_select",
+    "options": [
+      "None \u2014 I want to do everything myself",
+      "Summaries \u2014 help me understand proposals faster",
+      "Recommendations \u2014 suggest how I should vote or who to delegate to",
+      "Automation \u2014 vote or delegate on my behalf following rules I set"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q22",
+    "section": 10,
+    "section_title": "Current Tools & Habits",
+    "label": "What's your preferred wallet for interacting with NEAR?",
+    "type": "single_select",
+    "options": [
+      "NEAR Wallet (wallet.near.org)",
+      "MyNearWallet",
+      "Meteor Wallet",
+      "Sender Wallet",
+      "HERE Wallet",
+      "Ledger (hardware)",
+      "Other"
+    ],
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q23",
+    "section": 11,
+    "section_title": "Prioritization",
+    "label": "What would most increase your likelihood of participating in House of Stake?",
+    "type": "single_select",
+    "options": [
+      "Clear public roadmap",
+      "More users/TVL (social proof)",
+      "Backing from NEAR Foundation",
+      "Longer track record",
+      "Higher rewards",
+      "Shorter unlock period",
+      "Simpler UX",
+      "Better delegate options",
+      "Proposals that affect me directly",
+      "Confidence in contract security",
+      "Nothing - I'm already participating",
+      "Nothing - I don't plan to participate"
+    ],
+    "optional": false,
+    "show_if": null
+  },
+  {
+    "id": "q24",
+    "section": 12,
+    "section_title": "Open Feedback",
+    "label": "Is there anything else you'd like to share about why you have or haven't participated in House of Stake?",
+    "type": "open_text",
+    "options": null,
+    "optional": true,
+    "show_if": null
+  },
+  {
+    "id": "q25",
+    "section": 12,
+    "section_title": "Open Feedback",
+    "label": "Would you be open to a follow-up conversation with the HoS team?",
+    "type": "contact",
+    "options": [
+      "Yes \u2014 Email",
+      "Yes \u2014 Telegram/Discord",
+      "No thanks"
+    ],
+    "optional": true,
+    "show_if": null
+  }
+]

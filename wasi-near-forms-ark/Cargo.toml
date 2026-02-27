@@ -1,0 +1,36 @@
+[package]
+name = "wasi-near-forms-ark"
+version = "0.1.0"
+edition = "2021"
+description = "OutLayer WASI module for near-forms - decrypts form submissions for form creators"
+
+[[bin]]
+name = "wasi-near-forms-ark"
+path = "src/main.rs"
+
+[dependencies]
+# OutLayer SDK
+outlayer = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client for WASI
+wasi-http-client = "0.2"
+
+# Cryptography - pure Rust implementations for WASI compatibility
+# Note: Using libsecp256k1 (pure Rust) instead of secp256k1 (C bindings)
+libsecp256k1 = "0.7"
+sha2 = "0.10"
+hkdf = "0.12"
+hex = "0.4"
+# ChaCha20-Poly1305 for hybrid encryption (faster than AES in WASM, no lookup tables)
+chacha20poly1305 = "0.10"
+
+[profile.release]
+opt-level = "z"        # Optimize for size (more aggressive than "s")
+lto = true             # Link-time optimization
+strip = true           # Strip symbols
+codegen-units = 1      # Better optimization (slower compile)
+panic = "abort"        # Reduce binary size
