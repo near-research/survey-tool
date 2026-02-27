@@ -10,6 +10,8 @@ pub enum Input {
     ReadResponses(ReadResponsesInput),
     /// SubmitForm: Receive and encrypt a form submission (respondent, via transaction)
     SubmitForm(SubmitFormInput),
+    /// GetMasterPublicKey: Return the master public key (no auth required)
+    GetMasterPublicKey(GetMasterPublicKeyInput),
 }
 
 /// Input for ReadResponses action
@@ -25,6 +27,10 @@ pub struct SubmitFormInput {
     pub encrypted_answers: String,
 }
 
+/// Input for GetMasterPublicKey action
+#[derive(Debug, Deserialize)]
+pub struct GetMasterPublicKeyInput {}
+
 /// WASI module output - union of possible response types
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
@@ -33,6 +39,14 @@ pub enum Output {
     ReadResponses(ReadResponsesOutput),
     /// SubmitForm output: confirmation
     SubmitForm(SubmitFormOutput),
+    /// GetMasterPublicKey output: hex-encoded compressed public key
+    GetMasterPublicKey(GetMasterPublicKeyOutput),
+}
+
+/// Output for GetMasterPublicKey action
+#[derive(Debug, Serialize)]
+pub struct GetMasterPublicKeyOutput {
+    pub master_public_key: String,
 }
 
 /// Output for ReadResponses action

@@ -8,7 +8,7 @@ mod crypto;
 mod db;
 mod types;
 
-use libsecp256k1::SecretKey;
+use libsecp256k1::{PublicKey, SecretKey};
 use outlayer::env;
 use types::*;
 
@@ -65,7 +65,19 @@ fn process() -> Result<Output, Box<dyn std::error::Error>> {
     match input {
         Input::ReadResponses(_) => handle_read_responses(),
         Input::SubmitForm(submit_input) => handle_submit_form(submit_input),
+        Input::GetMasterPublicKey(_) => handle_get_master_public_key(),
     }
+}
+
+/// Handle GetMasterPublicKey action (returns compressed secp256k1 public key)
+/// No auth required — the public key is not sensitive.
+fn handle_get_master_public_key() -> Result<Output, Box<dyn std::error::Error>> {
+    let master_privkey = load_master_key()?;
+    let master_pubkey = PublicKey::from_secret_key(&master_privkey);
+    let pubkey_hex = hex::encode(master_pubkey.serialize_compressed());
+    Ok(Output::GetMasterPublicKey(GetMasterPublicKeyOutput {
+        master_public_key: pubkey_hex,
+    }))
 }
 
 /// Handle ReadResponses action (creator reads decrypted submissions)

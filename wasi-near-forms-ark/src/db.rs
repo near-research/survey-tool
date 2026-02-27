@@ -26,12 +26,17 @@ pub fn get_form(
     let status = response.status();
 
     if status != 200 {
-        return Err(format!("Failed to fetch form (status {})", status).into());
+        let body = response.body().unwrap_or_default();
+        let snippet = String::from_utf8_lossy(&body[..body.len().min(200)]);
+        return Err(format!("Failed to fetch form (status {}): {}", status, snippet).into());
     }
 
     let body = response.body()?;
     let form: FormMetadata = serde_json::from_slice(&body)
-        .map_err(|e| format!("Invalid form JSON: {}", e))?;
+        .map_err(|e| {
+            let snippet = String::from_utf8_lossy(&body[..body.len().min(200)]);
+            format!("Invalid form JSON: {} (body: {})", e, snippet)
+        })?;
 
     Ok(form)
 }
@@ -55,14 +60,19 @@ pub fn get_submissions(
     let status = response.status();
 
     if status != 200 {
-        return Err(format!("Failed to fetch submissions (status {})", status).into());
+        let body = response.body().unwrap_or_default();
+        let snippet = String::from_utf8_lossy(&body[..body.len().min(200)]);
+        return Err(format!("Failed to fetch submissions (status {}): {}", status, snippet).into());
     }
 
     // Parse JSON response
     let body = response.body()?;
 
     let submissions: Vec<EncryptedSubmission> = serde_json::from_slice(&body)
-        .map_err(|e| format!("Invalid submissions JSON: {}", e))?;
+        .map_err(|e| {
+            let snippet = String::from_utf8_lossy(&body[..body.len().min(200)]);
+            format!("Invalid submissions JSON: {} (body: {})", e, snippet)
+        })?;
 
     Ok(submissions)
 }
