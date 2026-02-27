@@ -105,7 +105,7 @@ function SingleSelectQuestion({ question, value, onChange, isHidden }: QuestionP
       </label>
       <fieldset className="space-y-2">
         {question.options?.map((option) => (
-          <div key={option} className="flex items-center">
+          <div key={option} className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
             <input
               type="radio"
               id={`${question.id}-${option}`}
@@ -113,7 +113,7 @@ function SingleSelectQuestion({ question, value, onChange, isHidden }: QuestionP
               value={option}
               checked={value === option}
               onChange={() => onChange(question.id, option)}
-              className="w-4 h-4 text-indigo-600"
+              className="w-4 h-4 text-brand-600"
             />
             <label htmlFor={`${question.id}-${option}`} className="ml-3 text-sm text-gray-700">
               {option}
@@ -145,13 +145,13 @@ function MultiSelectQuestion({ question, value, onChange, isHidden }: QuestionPr
       </label>
       <fieldset className="space-y-2">
         {question.options?.map((option) => (
-          <div key={option} className="flex items-center">
+          <div key={option} className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
             <input
               type="checkbox"
               id={`${question.id}-${option}`}
               checked={selectedValues.includes(option)}
               onChange={() => handleChange(option)}
-              className="w-4 h-4 text-indigo-600"
+              className="w-4 h-4 text-brand-600"
             />
             <label htmlFor={`${question.id}-${option}`} className="ml-3 text-sm text-gray-700">
               {option}
@@ -199,7 +199,7 @@ function RankQuestion({ question, value, onChange, isHidden }: QuestionProps) {
             <select
               value={selectedValues[rankIndex] || ''}
               onChange={(e) => handleSelectRank(rankIndex, e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">-- Select --</option>
               {unselectedOptions
@@ -215,7 +215,7 @@ function RankQuestion({ question, value, onChange, isHidden }: QuestionProps) {
               <button
                 type="button"
                 onClick={() => handleClearRank(rankIndex)}
-                className="text-red-600 hover:text-red-800 text-sm"
+                className="text-red-600 hover:text-red-800 text-sm border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition"
               >
                 Clear
               </button>
@@ -241,9 +241,12 @@ function OpenTextQuestion({ question, value, onChange, isHidden }: QuestionProps
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(question.id, e.target.value)}
         maxLength={5000}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
         rows={4}
       />
+      <p className="mt-1 text-xs text-gray-400 text-right">
+        {(typeof value === 'string' ? value : '').length}/5000
+      </p>
     </div>
   );
 }
@@ -266,7 +269,7 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
       <fieldset className="space-y-3">
         {question.options?.map((option) => (
           <div key={option}>
-            <div className="flex items-center">
+            <div className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
               <input
                 type="radio"
                 id={`${question.id}-${option}`}
@@ -274,7 +277,7 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
                 value={option}
                 checked={selectedOption === option}
                 onChange={() => onChange(question.id, option)}
-                className="w-4 h-4 text-indigo-600"
+                className="w-4 h-4 text-brand-600"
               />
               <label htmlFor={`${question.id}-${option}`} className="ml-3 text-sm text-gray-700">
                 {option}
@@ -286,7 +289,7 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
                 value={contactDetail}
                 placeholder="Your email or handle..."
                 maxLength={200}
-                className="mt-2 ml-7 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-2 ml-7 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
                 onChange={(e) => onChange(question.id, `${option}:${e.target.value}`)}
               />
             )}
@@ -327,7 +330,6 @@ export default function SubmitFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
-  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize wallet
   useEffect(() => {
@@ -491,9 +493,6 @@ export default function SubmitFormPage() {
 
       setMessage({ type: 'success', text: 'Form submitted successfully!' });
       setSubmitting(false);
-      redirectTimerRef.current = setTimeout(() => {
-        router.push('/');
-      }, 2000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       // Silently handle user cancellation
@@ -509,9 +508,6 @@ export default function SubmitFormPage() {
           text: 'Your transaction was sent. Please check your wallet or NEAR Explorer to confirm.',
         });
         setSubmitting(false);
-        redirectTimerRef.current = setTimeout(() => {
-          router.push('/');
-        }, 3000);
         return;
       }
       setMessage({
@@ -522,21 +518,20 @@ export default function SubmitFormPage() {
     }
   };
 
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (redirectTimerRef.current) {
-        clearTimeout(redirectTimerRef.current);
-      }
-    };
-  }, []);
-
   if (loading) {
-    return <div className="p-8 text-center">Loading form...</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100 flex items-center justify-center">
+        <p className="text-gray-500 animate-pulse">Loading form...</p>
+      </div>
+    );
   }
 
   if (!form) {
-    return <div className="p-8 text-center text-red-600">Form not found</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100 flex items-center justify-center">
+        <p className="text-red-600">Form not found</p>
+      </div>
+    );
   }
 
   // Group questions by section, sorted numerically
@@ -549,14 +544,15 @@ export default function SubmitFormPage() {
   return (
     <>
       <Head>
-        <title>{form.title} - Submit</title>
+        <title>{form.title} - NEAR Forms</title>
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100">
         <nav className="bg-white shadow-sm">
-          <div className="max-w-2xl mx-auto px-4 py-4">
-            <Link href="/" className="text-sm text-indigo-600 hover:text-indigo-800">
-              &larr; Back
+          <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <Link href="/" className="text-2xl font-bold text-brand-600">NEAR Forms</Link>
+            <Link href="/responses" className="text-sm text-brand-600 hover:text-brand-800">
+              Responses
             </Link>
           </div>
         </nav>
@@ -576,7 +572,7 @@ export default function SubmitFormPage() {
                     const { showModal } = await import('@/lib/near');
                     showModal();
                   }}
-                  className="bg-indigo-600 text-white px-6 py-2 rounded-md font-medium hover:bg-indigo-700 transition"
+                  className="bg-brand-600 text-white px-6 py-2 rounded-md font-medium hover:bg-brand-700 transition"
                 >
                   Connect Wallet
                 </button>
@@ -608,13 +604,18 @@ export default function SubmitFormPage() {
                 }`}
               >
                 {message.text}
+                {message.type === 'success' && (
+                  <Link href="/" className="ml-2 underline font-medium hover:text-green-900">
+                    Return to Home
+                  </Link>
+                )}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
               {sections.map((section) => (
                 <div key={section}>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-6 pb-3 border-b-2 border-indigo-200">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-6 pb-3 border-b-2 border-brand-200">
                     {questionsBySection[section][0]?.section_title}
                   </h2>
 
@@ -635,7 +636,7 @@ export default function SubmitFormPage() {
               <button
                 type="submit"
                 disabled={!account || submitting}
-                className="w-full bg-indigo-600 text-white py-3 rounded-md font-medium hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                className="w-full bg-brand-600 text-white py-3 rounded-md font-medium hover:bg-brand-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
               >
                 {submitting ? 'Submitting...' : 'Submit Form'}
               </button>

@@ -42,25 +42,33 @@ export default function HomePage() {
   }, []);
 
   if (loading) {
-    return <div className="p-8 text-center">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100 flex items-center justify-center">
+        <p className="text-gray-500 animate-pulse">Loading...</p>
+      </div>
+    );
   }
 
   if (!form) {
-    return <div className="p-8 text-center text-red-600">Failed to load form</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100 flex items-center justify-center">
+        <p className="text-red-600">Failed to load form</p>
+      </div>
+    );
   }
 
   return (
     <>
       <Head>
-        <title>{form.title} - near-forms</title>
+        <title>{form.title} - NEAR Forms</title>
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100">
         <nav className="bg-white shadow-sm">
           <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-indigo-600">near-forms</h1>
-            <Link href="/responses" className="text-sm text-indigo-600 hover:text-indigo-800">
-              View Responses
+            <Link href="/" className="text-2xl font-bold text-brand-600">NEAR Forms</Link>
+            <Link href="/responses" className="text-sm text-brand-600 hover:text-brand-800">
+              Responses
             </Link>
           </div>
         </nav>
@@ -80,7 +88,7 @@ export default function HomePage() {
 
             <Link
               href={`/forms/${form.id}`}
-              className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700"
+              className="inline-block bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700"
             >
               Fill Out Form
             </Link>
