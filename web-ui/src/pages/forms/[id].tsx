@@ -14,6 +14,7 @@ interface FormQuestion {
   options: string[] | null;
   optional: boolean;
   show_if: { question_id: string; value?: string; values?: string[] } | null;
+  exclusive_options?: string[];
 }
 
 interface FormData {
@@ -129,12 +130,22 @@ function MultiSelectQuestion({ question, value, onChange, isHidden }: QuestionPr
   if (isHidden) return null;
 
   const selectedValues = Array.isArray(value) ? value : [];
+  const exclusiveSet = new Set(question.exclusive_options || []);
 
   const handleChange = (option: string) => {
-    const newValues = selectedValues.includes(option)
-      ? selectedValues.filter(v => v !== option)
-      : [...selectedValues, option];
-    onChange(question.id, newValues);
+    if (selectedValues.includes(option)) {
+      onChange(question.id, selectedValues.filter(v => v !== option));
+      return;
+    }
+
+    if (exclusiveSet.has(option)) {
+      // Exclusive option selected: deselect everything else
+      onChange(question.id, [option]);
+    } else {
+      // Regular option selected: remove any exclusive options
+      const withoutExclusive = selectedValues.filter(v => !exclusiveSet.has(v));
+      onChange(question.id, [...withoutExclusive, option]);
+    }
   };
 
   return (
@@ -144,20 +155,33 @@ function MultiSelectQuestion({ question, value, onChange, isHidden }: QuestionPr
         {!question.optional && <span className="text-red-500"> *</span>}
       </label>
       <fieldset className="space-y-2">
-        {question.options?.map((option) => (
-          <div key={option} className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
-            <input
-              type="checkbox"
-              id={`${question.id}-${option}`}
-              checked={selectedValues.includes(option)}
-              onChange={() => handleChange(option)}
-              className="w-4 h-4 text-brand-600"
-            />
-            <label htmlFor={`${question.id}-${option}`} className="ml-3 text-sm text-gray-700">
-              {option}
-            </label>
-          </div>
-        ))}
+        {question.options?.map((option, index) => {
+          const isExclusive = exclusiveSet.has(option);
+          const showSeparator = isExclusive &&
+            index > 0 &&
+            !exclusiveSet.has(question.options![index - 1]);
+
+          return (
+            <div key={option}>
+              {showSeparator && <hr className="my-2 border-gray-200" />}
+              <div className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
+                <input
+                  type="checkbox"
+                  id={`${question.id}-${option}`}
+                  checked={selectedValues.includes(option)}
+                  onChange={() => handleChange(option)}
+                  className="w-4 h-4 text-brand-600"
+                />
+                <label
+                  htmlFor={`${question.id}-${option}`}
+                  className={`ml-3 text-sm ${isExclusive ? 'text-gray-500 italic' : 'text-gray-700'}`}
+                >
+                  {option}
+                </label>
+              </div>
+            </div>
+          );
+        })}
       </fieldset>
     </div>
   );
@@ -563,84 +587,92 @@ export default function SubmitFormPage() {
             <h1 className="text-3xl font-bold mb-2">{form.title}</h1>
 
             {!account ? (
-              <div className="mb-8">
-                <p className="text-gray-600 mb-4">
-                  Please sign in with your NEAR wallet to submit this form.
+              <div className="text-center py-12">
+                <svg className="mx-auto h-16 w-16 text-brand-400 mb-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" />
+                </svg>
+                <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                  Connect your NEAR wallet to continue
+                </h2>
+                <p className="text-gray-500 mb-8 max-w-md mx-auto">
+                  This form requires wallet authentication. Your responses will be encrypted and can only be read by the form creator.
                 </p>
                 <button
                   onClick={async () => {
                     const { showModal } = await import('@/lib/near');
                     showModal();
                   }}
-                  className="bg-brand-600 text-white px-6 py-2 rounded-md font-medium hover:bg-brand-700 transition"
+                  className="bg-brand-600 text-white px-8 py-3 rounded-md font-medium hover:bg-brand-700 transition text-lg"
                 >
                   Connect Wallet
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-4 mb-8">
-                <p className="text-gray-600">
-                  Signed in as: <span className="font-semibold">{account}</span>
-                </p>
-                <button
-                  onClick={async () => {
-                    const { signOut } = await import('@/lib/near');
-                    await signOut();
-                    setAccount(null);
-                  }}
-                  className="text-sm text-red-600 hover:text-red-800"
-                >
-                  Disconnect
-                </button>
-              </div>
-            )}
-
-            {message && (
-              <div
-                className={`mb-6 p-4 rounded-lg ${
-                  message.type === 'success'
-                    ? 'bg-green-100 text-green-800 border border-green-400'
-                    : 'bg-red-100 text-red-800 border border-red-400'
-                }`}
-              >
-                {message.text}
-                {message.type === 'success' && (
-                  <Link href="/" className="ml-2 underline font-medium hover:text-green-900">
-                    Return to Home
-                  </Link>
-                )}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {sections.map((section) => (
-                <div key={section}>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-6 pb-3 border-b-2 border-brand-200">
-                    {questionsBySection[section][0]?.section_title}
-                  </h2>
-
-                  <div className="space-y-6">
-                    {questionsBySection[section].map((question) => (
-                      <QuestionRenderer
-                        key={question.id}
-                        question={question}
-                        value={answers[question.id] || (question.type === 'multi_select' || question.type === 'rank' ? [] : '')}
-                        onChange={handleAnswerChange}
-                        isHidden={!isVisible(question, answers)}
-                      />
-                    ))}
-                  </div>
+              <>
+                <div className="flex items-center gap-4 mb-8">
+                  <p className="text-gray-600">
+                    Signed in as: <span className="font-semibold">{account}</span>
+                  </p>
+                  <button
+                    onClick={async () => {
+                      const { signOut } = await import('@/lib/near');
+                      await signOut();
+                      setAccount(null);
+                    }}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Disconnect
+                  </button>
                 </div>
-              ))}
 
-              <button
-                type="submit"
-                disabled={!account || submitting}
-                className="w-full bg-brand-600 text-white py-3 rounded-md font-medium hover:bg-brand-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-              >
-                {submitting ? 'Submitting...' : 'Submit Form'}
-              </button>
-            </form>
+                {message && (
+                  <div
+                    className={`mb-6 p-4 rounded-lg ${
+                      message.type === 'success'
+                        ? 'bg-green-100 text-green-800 border border-green-400'
+                        : 'bg-red-100 text-red-800 border border-red-400'
+                    }`}
+                  >
+                    {message.text}
+                    {message.type === 'success' && (
+                      <Link href="/" className="ml-2 underline font-medium hover:text-green-900">
+                        Return to Home
+                      </Link>
+                    )}
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-8">
+                  {sections.map((section) => (
+                    <div key={section}>
+                      <h2 className="text-lg font-semibold text-gray-800 mb-6 pb-3 border-b-2 border-brand-200">
+                        {questionsBySection[section][0]?.section_title}
+                      </h2>
+
+                      <div className="space-y-6">
+                        {questionsBySection[section].map((question) => (
+                          <QuestionRenderer
+                            key={question.id}
+                            question={question}
+                            value={answers[question.id] || (question.type === 'multi_select' || question.type === 'rank' ? [] : '')}
+                            onChange={handleAnswerChange}
+                            isHidden={!isVisible(question, answers)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full bg-brand-600 text-white py-3 rounded-md font-medium hover:bg-brand-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                  >
+                    {submitting ? 'Submitting...' : 'Submit Form'}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
         </div>

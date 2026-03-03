@@ -12,6 +12,7 @@ interface FormQuestion {
   options: string[] | null;
   optional: boolean;
   show_if: any;
+  exclusive_options?: string[];
 }
 
 interface FormData {

@@ -330,6 +330,7 @@
       "I've needed to access staked funds on short notice for personal or business reasons",
       "None of these apply"
     ],
+    "exclusive_options": ["None of these apply"],
     "optional": true,
     "show_if": null
   },
@@ -383,6 +384,7 @@
       "Delegate compensation and governance structure",
       "I don't vote on governance proposals"
     ],
+    "exclusive_options": ["I don't vote on governance proposals"],
     "optional": true,
     "show_if": {
       "question_id": "q16",
@@ -438,6 +440,7 @@
       "Professional governance experience",
       "Nothing \u2014 I wouldn't delegate"
     ],
+    "exclusive_options": ["Nothing \u2014 I wouldn't delegate"],
     "optional": true,
     "show_if": null
   },
@@ -471,6 +474,10 @@
       "I don't stay informed \u2014 it's too much to follow",
       "Not applicable \u2014 I don't participate in governance"
     ],
+    "exclusive_options": [
+      "I don't stay informed \u2014 it's too much to follow",
+      "Not applicable \u2014 I don't participate in governance"
+    ],
     "optional": true,
     "show_if": null
   },
@@ -491,6 +498,7 @@
       "Friends or colleagues share relevant updates",
       "I don't actively follow \u2014 too much to keep up with"
     ],
+    "exclusive_options": ["I don't actively follow \u2014 too much to keep up with"],
     "optional": true,
     "show_if": null
   },
