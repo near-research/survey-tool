@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: near_forms
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: near_forms

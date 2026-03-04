@@ -135,6 +135,7 @@
     "section_title": "Current Behavior",
     "label": "If you stake NEAR, what's most important to you? (rank top 3)",
     "type": "rank",
+    "rank_count": 3,
     "options": [
       "Highest yield / APY",
       "Liquidity (ability to withdraw quickly)",

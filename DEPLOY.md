@@ -54,10 +54,14 @@ For each service, click on it in Railway dashboard and set **Variables**:
 DATABASE_URL=<auto-set by Railway Postgres addon, or your postgres connection string>
 API_PORT=4001
 API_SECRET=<your generated API_SECRET from Step 1>
-FORM_ID=daf14a0c-20f7-4199-a07b-c6456d53ef2d
+FORM_ID=daf14a0c-20f7-4199-a07b-c6456d53ef2d  # Immutable — changing requires rebuilding both db-api and WASI module
 FORM_CREATOR_ID=contributors.testnet
 FORM_TITLE=House of Stake Governance Survey
+CORS_ALLOWED_ORIGIN=<your Railway web-ui public URL, e.g., https://near-forms-web-xxxxx.railway.app>
+RATE_LIMIT_TRUST_PROXY=true
 ```
+
+**Important:** `CORS_ALLOWED_ORIGIN` is required — db-api will panic on startup without it. Set it to your Railway web-ui public URL. `RATE_LIMIT_TRUST_PROXY=true` is needed behind Railway's proxy for correct rate limiting.
 
 **Note on Questions:** Questions are embedded at compile-time from `db-api/seed/questions.json` and seeded into PostgreSQL on db-api startup (upserted on each deploy). Changing questions requires rebuilding db-api. To update survey questions:
 
@@ -72,9 +76,15 @@ FORM_TITLE=House of Stake Governance Survey
 NEXT_PUBLIC_NETWORK_ID=testnet
 NEXT_PUBLIC_OUTLAYER_DEPOSIT_NEAR=0.025
 NEXT_PUBLIC_PROJECT_ID=agency.testnet/near-forms
-NEXT_PUBLIC_FORM_ID=daf14a0c-20f7-4199-a07b-c6456d53ef2d
+NEXT_PUBLIC_OUTLAYER_CONTRACT=outlayer.testnet
+NEXT_PUBLIC_FORM_ID=daf14a0c-20f7-4199-a07b-c6456d53ef2d  # Must match FORM_ID in db-api and WASI module
 NEXT_PUBLIC_DATABASE_API_URL=<your Railway db-api public URL>
+NEXT_PUBLIC_MASTER_PUBLIC_KEY=<66-char hex compressed secp256k1 public key, starts with 02 or 03>
+NEXT_PUBLIC_SECRETS_PROFILE=default
+NEXT_PUBLIC_USE_SECRETS=true
 ```
+
+**Important:** `NEXT_PUBLIC_MASTER_PUBLIC_KEY` is critical — without it, client-side encryption will fail and form submissions won't work. Derive it from `PROTECTED_MASTER_KEY` or use the GetMasterPublicKey action via OutLayer. For mainnet, set `NEXT_PUBLIC_OUTLAYER_CONTRACT=outlayer.near`.
 
 To get the db-api public URL:
 
@@ -151,7 +161,8 @@ Open your Railway web-ui public URL (e.g., `https://near-forms-web-xxxxx.railway
 Verify submission stored:
 
 ```bash
-curl https://near-forms-db-api-xxxxx.railway.app/forms/daf14a0c-20f7-4199-a07b-c6456d53ef2d/submissions | jq length
+curl https://near-forms-db-api-xxxxx.railway.app/v1/forms/daf14a0c-20f7-4199-a07b-c6456d53ef2d/submissions \
+  -H "API-Secret: <your API_SECRET>" | jq length
 ```
 
 ### 8.3 View Responses as Creator

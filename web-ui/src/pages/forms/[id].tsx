@@ -1,90 +1,13 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-
-// ==================== Types ====================
-
-interface FormQuestion {
-  id: string;
-  section: number;
-  section_title: string;
-  label: string;
-  type: 'single_select' | 'multi_select' | 'rank' | 'open_text' | 'contact';
-  options: string[] | null;
-  optional: boolean;
-  show_if: { question_id: string; value?: string; values?: string[] } | null;
-  exclusive_options?: string[];
-}
-
-interface FormData {
-  id: string;
-  title: string;
-  questions: FormQuestion[];
-  creator_id: string;
-}
-
-type AnswerValue = string | string[];
-type AnswerMap = Record<string, AnswerValue>;
-
-// ==================== Helper Functions ====================
-
-/**
- * Determine if a question should be visible based on answers
- */
-function isVisible(question: FormQuestion, answers: AnswerMap): boolean {
-  if (!question.show_if) return true;
-
-  const { question_id, value, values } = question.show_if;
-  const answer = answers[question_id];
-
-  // If referenced question doesn't have an answer yet, hide this question
-  // (it will be revealed once the dependency is answered with the correct value)
-  if (answer === undefined) return false;
-
-  // Handle multi-value conditionals (values array)
-  if (values) {
-    if (Array.isArray(answer)) {
-      return answer.some(a => values.includes(a));
-    }
-    return values.includes(answer as string);
-  }
-
-  // Handle single-value conditionals
-  return answer === value;
-}
-
-/**
- * Reset answers for hidden questions and handle transitive chains
- * E.g., q12 → q12b → q13: changing q12 clears q12b and q13
- */
-function resetHiddenAnswers(answers: AnswerMap, questions: FormQuestion[]): AnswerMap {
-  let changed = true;
-  let result = { ...answers };
-  let iterations = 0;
-  const MAX_ITERATIONS = questions.length + 2;
-
-  // Loop until no more changes (handles transitive chains)
-  // Cap iterations to prevent infinite loops on circular show_if dependencies
-  while (changed && iterations < MAX_ITERATIONS) {
-    iterations++;
-    changed = false;
-    for (const q of questions) {
-      if (!isVisible(q, result)) {
-        // Clear the answer if the question is not visible
-        const currentValue = result[q.id];
-        const isEmpty = currentValue === '' || currentValue === undefined || (Array.isArray(currentValue) && currentValue.length === 0);
-
-        if (!isEmpty) {
-          result = { ...result, [q.id]: Array.isArray(currentValue) ? [] : '' };
-          changed = true;
-        }
-      }
-    }
-  }
-
-  return result;
-}
+import type { FormQuestion, FormData } from '@/lib/types';
+import { useFetchWithTimeout, getFormApiUrl, useWallet } from '@/lib/hooks';
+import { deriveFormPublicKey, COMPRESSED_PUBKEY_REGEX } from '@/lib/crypto';
+import { isVisible, resetHiddenAnswers, applyExclusiveMultiSelect, sanitizeUserError } from '@/lib/form-helpers';
+import { WALLET_ERR_CANCELLED, WALLET_ERR_WINDOW_CLOSED } from '@/lib/near';
+import type { AnswerValue, AnswerMap } from '@/lib/form-helpers';
 
 // ==================== Question Renderers ====================
 
@@ -99,12 +22,12 @@ function SingleSelectQuestion({ question, value, onChange, isHidden }: QuestionP
   if (isHidden) return null;
 
   return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-gray-700 mb-3">
+    <fieldset className="mb-6">
+      <legend className="block text-sm font-medium text-gray-700 mb-3">
         {question.label}
         {!question.optional && <span className="text-red-500"> *</span>}
-      </label>
-      <fieldset className="space-y-2">
+      </legend>
+      <div className="space-y-2">
         {question.options?.map((option) => (
           <div key={option} className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
             <input
@@ -114,6 +37,7 @@ function SingleSelectQuestion({ question, value, onChange, isHidden }: QuestionP
               value={option}
               checked={value === option}
               onChange={() => onChange(question.id, option)}
+              aria-required={!question.optional}
               className="w-4 h-4 text-brand-600"
             />
             <label htmlFor={`${question.id}-${option}`} className="ml-3 text-sm text-gray-700">
@@ -121,8 +45,8 @@ function SingleSelectQuestion({ question, value, onChange, isHidden }: QuestionP
             </label>
           </div>
         ))}
-      </fieldset>
-    </div>
+      </div>
+    </fieldset>
   );
 }
 
@@ -130,32 +54,21 @@ function MultiSelectQuestion({ question, value, onChange, isHidden }: QuestionPr
   if (isHidden) return null;
 
   const selectedValues = Array.isArray(value) ? value : [];
-  const exclusiveSet = new Set(question.exclusive_options || []);
+  const exclusiveOpts = question.exclusive_options || [];
 
   const handleChange = (option: string) => {
-    if (selectedValues.includes(option)) {
-      onChange(question.id, selectedValues.filter(v => v !== option));
-      return;
-    }
-
-    if (exclusiveSet.has(option)) {
-      // Exclusive option selected: deselect everything else
-      onChange(question.id, [option]);
-    } else {
-      // Regular option selected: remove any exclusive options
-      const withoutExclusive = selectedValues.filter(v => !exclusiveSet.has(v));
-      onChange(question.id, [...withoutExclusive, option]);
-    }
+    onChange(question.id, applyExclusiveMultiSelect(selectedValues, option, exclusiveOpts));
   };
 
   return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-gray-700 mb-3">
+    <fieldset className="mb-6">
+      <legend className="block text-sm font-medium text-gray-700 mb-3">
         {question.label}
         {!question.optional && <span className="text-red-500"> *</span>}
-      </label>
-      <fieldset className="space-y-2">
+      </legend>
+      <div className="space-y-2">
         {question.options?.map((option, index) => {
+          const exclusiveSet = new Set(exclusiveOpts);
           const isExclusive = exclusiveSet.has(option);
           const showSeparator = isExclusive &&
             index > 0 &&
@@ -170,6 +83,7 @@ function MultiSelectQuestion({ question, value, onChange, isHidden }: QuestionPr
                   id={`${question.id}-${option}`}
                   checked={selectedValues.includes(option)}
                   onChange={() => handleChange(option)}
+                  aria-required={!question.optional}
                   className="w-4 h-4 text-brand-600"
                 />
                 <label
@@ -182,8 +96,8 @@ function MultiSelectQuestion({ question, value, onChange, isHidden }: QuestionPr
             </div>
           );
         })}
-      </fieldset>
-    </div>
+      </div>
+    </fieldset>
   );
 }
 
@@ -192,10 +106,12 @@ function RankQuestion({ question, value, onChange, isHidden }: QuestionProps) {
 
   const selectedValues = Array.isArray(value) ? value : [];
   const unselectedOptions = question.options?.filter(opt => !selectedValues.includes(opt)) || [];
-  const ranks = ['1st choice', '2nd choice', '3rd choice'];
+  const rankCount = question.rank_count ?? 3;
+  const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
+  const ranks = Array.from({ length: rankCount }, (_, i) => `${ordinals[i] ?? `${i + 1}th`} choice`);
 
   const handleSelectRank = (rankIndex: number, option: string) => {
-    const newValues = Array.from({ length: 3 }, (_, i) => selectedValues[i] ?? '');
+    const newValues = Array.from({ length: rankCount }, (_, i) => selectedValues[i] ?? '');
     // Remove this option from any other rank (prevent duplicates)
     for (let i = 0; i < newValues.length; i++) {
       if (i !== rankIndex && newValues[i] === option) newValues[i] = '';
@@ -205,17 +121,17 @@ function RankQuestion({ question, value, onChange, isHidden }: QuestionProps) {
   };
 
   const handleClearRank = (rankIndex: number) => {
-    const newValues = Array.from({ length: 3 }, (_, i) => selectedValues[i] ?? '');
+    const newValues = Array.from({ length: rankCount }, (_, i) => selectedValues[i] ?? '');
     newValues[rankIndex] = '';
     onChange(question.id, newValues);
   };
 
   return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-gray-700 mb-3">
+    <fieldset className="mb-6">
+      <legend className="block text-sm font-medium text-gray-700 mb-3">
         {question.label}
         {!question.optional && <span className="text-red-500"> *</span>}
-      </label>
+      </legend>
       <div className="space-y-3">
         {ranks.map((rankLabel, rankIndex) => (
           <div key={rankIndex} className="flex items-center gap-3">
@@ -223,6 +139,8 @@ function RankQuestion({ question, value, onChange, isHidden }: QuestionProps) {
             <select
               value={selectedValues[rankIndex] || ''}
               onChange={(e) => handleSelectRank(rankIndex, e.target.value)}
+              aria-label={`${rankLabel} selection`}
+              aria-required={!question.optional}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">-- Select --</option>
@@ -247,7 +165,7 @@ function RankQuestion({ question, value, onChange, isHidden }: QuestionProps) {
           </div>
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -264,6 +182,8 @@ function OpenTextQuestion({ question, value, onChange, isHidden }: QuestionProps
         id={question.id}
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(question.id, e.target.value)}
+        aria-required={!question.optional}
+        autoComplete="off"
         maxLength={5000}
         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
         rows={4}
@@ -284,13 +204,23 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
     : '';
   const showInput = selectedOption.startsWith('Yes');
 
+  const handleOptionChange = (option: string) => {
+    // Only preserve ":detail" suffix for "Yes" options that show the text input.
+    // Non-"Yes" options (e.g., "No") store just the option name, clearing any stale detail.
+    if (option.startsWith('Yes')) {
+      onChange(question.id, `${option}:`);
+    } else {
+      onChange(question.id, option);
+    }
+  };
+
   return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-gray-700 mb-3">
+    <fieldset className="mb-6">
+      <legend className="block text-sm font-medium text-gray-700 mb-3">
         {question.label}
         {!question.optional && <span className="text-red-500"> *</span>}
-      </label>
-      <fieldset className="space-y-3">
+      </legend>
+      <div className="space-y-3">
         {question.options?.map((option) => (
           <div key={option}>
             <div className="flex items-center hover:bg-gray-50 rounded px-2 py-1 -mx-2">
@@ -300,7 +230,8 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
                 name={question.id}
                 value={option}
                 checked={selectedOption === option}
-                onChange={() => onChange(question.id, option)}
+                onChange={() => handleOptionChange(option)}
+                aria-required={!question.optional}
                 className="w-4 h-4 text-brand-600"
               />
               <label htmlFor={`${question.id}-${option}`} className="ml-3 text-sm text-gray-700">
@@ -311,6 +242,8 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
               <input
                 type="text"
                 value={contactDetail}
+                aria-label="Contact details"
+                autoComplete="off"
                 placeholder="Your email or handle..."
                 maxLength={200}
                 className="mt-2 ml-7 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -319,8 +252,8 @@ function ContactQuestion({ question, value, onChange, isHidden }: QuestionProps)
             )}
           </div>
         ))}
-      </fieldset>
-    </div>
+      </div>
+    </fieldset>
   );
 }
 
@@ -345,88 +278,77 @@ function QuestionRenderer({ question, value, onChange, isHidden }: QuestionProps
 
 export default function SubmitFormPage() {
   const router = useRouter();
-  const { id: formId } = router.query;
+  const rawId = router.query.id;
+  // router.query.id can be string | string[] | undefined; normalize to string
+  const formId = typeof rawId === 'string' ? rawId : undefined;
+
+  const formUrl = getFormApiUrl(formId);
+  const { data: formData, loading: formLoading, error: formError } = useFetchWithTimeout<FormData>(
+    formUrl,
+    { skip: !formId }
+  );
 
   const [form, setForm] = useState<FormData | null>(null);
   const [answers, setAnswers] = useState<AnswerMap>({});
-  const [account, setAccount] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [formDisabled, setFormDisabled] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  // Initialize wallet
+  const { account, connectWallet, disconnectWallet } = useWallet({
+    onAccountChange: () => { setMessage(null); setSubmitting(false); },
+  });
+
+  // Process form data when the fetch hook returns
   useEffect(() => {
-    let cancelled = false;
+    setFormDisabled(false);
+    setMessage(null);
 
-    const initWallet = async () => {
-      try {
-        const { initWalletSelector, getAccounts } = await import('@/lib/near');
-        const selector = await initWalletSelector();
+    if (formLoading) return;
 
-        if (cancelled) return;
+    if (formError) {
+      setMessage({ type: 'error', text: formError });
+      setLoading(false);
+      return;
+    }
 
-        // Subscribe to wallet state changes with cleanup
-        const subscription = selector.store.observable.subscribe((state) => {
-          if (state.accounts.length > 0) {
-            setAccount(state.accounts[0].accountId);
-          } else {
-            setAccount(null);
-          }
-        });
-        unsubscribeRef.current = () => subscription.unsubscribe();
+    if (formData) {
+      setForm(formData);
 
-        const accounts = await getAccounts();
-        if (!cancelled && accounts.length > 0) {
-          setAccount(accounts[0].accountId);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Wallet init error:', error);
+      // Validate master public key early so users see misconfiguration immediately
+      const masterPubKey = process.env.NEXT_PUBLIC_MASTER_PUBLIC_KEY;
+      if (!masterPubKey) {
+        setMessage({ type: 'error', text: 'NEXT_PUBLIC_MASTER_PUBLIC_KEY not configured. Form submissions are disabled.' });
+        setFormDisabled(true);
+      } else if (!COMPRESSED_PUBKEY_REGEX.test(masterPubKey)) {
+        setMessage({ type: 'error', text: 'NEXT_PUBLIC_MASTER_PUBLIC_KEY is malformed. Expected a 66-char hex compressed secp256k1 public key (starts with 02 or 03).' });
+        setFormDisabled(true);
+      } else {
+        // Validate the key is actually on the secp256k1 curve (not just valid hex).
+        // Uses module-level import (synchronous) to avoid race window where form
+        // could be submitted before async validation completes.
+        try {
+          deriveFormPublicKey(masterPubKey, formData.id);
+        } catch {
+          setMessage({ type: 'error', text: 'NEXT_PUBLIC_MASTER_PUBLIC_KEY is not a valid secp256k1 public key.' });
+          setFormDisabled(true);
         }
       }
-    };
 
-    initWallet();
+      // Initialize empty answers
+      const initialAnswers: AnswerMap = {};
+      formData.questions.forEach((q: FormQuestion) => {
+        if (q.type === 'multi_select' || q.type === 'rank') {
+          initialAnswers[q.id] = [];
+        } else {
+          initialAnswers[q.id] = '';
+        }
+      });
+      setAnswers(initialAnswers);
+    }
 
-    return () => {
-      cancelled = true;
-      unsubscribeRef.current?.();
-    };
-  }, []);
-
-  // Load form metadata
-  useEffect(() => {
-    const loadForm = async () => {
-      if (!formId) return;
-      try {
-        const dbApiUrl = process.env.NEXT_PUBLIC_DATABASE_API_URL || 'http://localhost:4001';
-        // Use URL param first, fall back to env var for development convenience
-        const formId_ = formId || process.env.NEXT_PUBLIC_FORM_ID;
-        const response = await fetch(`${dbApiUrl}/forms/${formId_}`);
-        if (!response.ok) throw new Error('Failed to load form');
-        const data = await response.json();
-        setForm(data);
-
-        // Initialize empty answers
-        const initialAnswers: AnswerMap = {};
-        data.questions.forEach((q: FormQuestion) => {
-          if (q.type === 'multi_select' || q.type === 'rank') {
-            initialAnswers[q.id] = [];
-          } else {
-            initialAnswers[q.id] = '';
-          }
-        });
-        setAnswers(initialAnswers);
-      } catch (error) {
-        setMessage({ type: 'error', text: `Failed to load form: ${error}` });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadForm();
-  }, [formId]);
+    setLoading(false);
+  }, [formData, formLoading, formError]);
 
   const handleAnswerChange = (questionId: string, value: AnswerValue) => {
     const newAnswers = { ...answers, [questionId]: value };
@@ -498,7 +420,7 @@ export default function SubmitFormPage() {
       if (!masterPubKey) {
         throw new Error('NEXT_PUBLIC_MASTER_PUBLIC_KEY not configured');
       }
-      if (!/^0[23][0-9a-fA-F]{64}$/.test(masterPubKey)) {
+      if (!COMPRESSED_PUBKEY_REGEX.test(masterPubKey)) {
         throw new Error('NEXT_PUBLIC_MASTER_PUBLIC_KEY must be a 66-char hex compressed secp256k1 public key (starts with 02 or 03)');
       }
       const encryptedAnswers = encryptFormAnswers(masterPubKey, form.id, visibleAnswers);
@@ -508,36 +430,38 @@ export default function SubmitFormPage() {
 
       // Ensure result is a valid object before accessing properties
       if (!result || typeof result !== 'object') {
-        throw new Error(`Unexpected response from OutLayer: ${JSON.stringify(result)}`);
+        console.error('Unexpected OutLayer response:', result);
+        throw new Error('Unexpected response from OutLayer. Please try again.');
       }
 
-      if (result.success === false) {
-        throw new Error((result as any).error || 'Submission failed');
+      if (result.success !== true) {
+        throw new Error(result.error || 'Submission failed');
       }
 
       setMessage({ type: 'success', text: 'Form submitted successfully!' });
-      setSubmitting(false);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       // Silently handle user cancellation
-      if (msg === 'Transaction cancelled') {
-        setSubmitting(false);
+      if (msg === WALLET_ERR_CANCELLED) {
         return;
       }
-      // Meteor wallet closes popup after broadcasting, returning "User closed the window"
-      // even though the transaction was sent. Show informational message instead of error.
-      if (msg.toLowerCase().includes('closed')) {
+      // Meteor wallet closes popup after broadcasting, but may also close before broadcast.
+      // We can't distinguish, so treat as ambiguous — not a confirmed success or failure.
+      if (WALLET_ERR_WINDOW_CLOSED.some(s => s === msg)) {
         setMessage({
-          type: 'success',
-          text: 'Your transaction was sent. Please check your wallet or NEAR Explorer to confirm.',
+          type: 'error',
+          text: 'Wallet closed before confirmation. Your submission may or may not have been sent — please check your wallet or NEAR Explorer.',
         });
-        setSubmitting(false);
         return;
       }
+      // Sanitize internal errors to user-friendly messages
+      console.error('Submission error:', msg);
+      const userMsg = sanitizeUserError(msg);
       setMessage({
         type: 'error',
-        text: `Submission failed: ${msg}`,
+        text: `Submission failed: ${userMsg}`,
       });
+    } finally {
       setSubmitting(false);
     }
   };
@@ -598,10 +522,7 @@ export default function SubmitFormPage() {
                   This form requires wallet authentication. Your responses will be encrypted and can only be read by the form creator.
                 </p>
                 <button
-                  onClick={async () => {
-                    const { showModal } = await import('@/lib/near');
-                    showModal();
-                  }}
+                  onClick={connectWallet}
                   className="bg-brand-600 text-white px-8 py-3 rounded-md font-medium hover:bg-brand-700 transition text-lg"
                 >
                   Connect Wallet
@@ -614,11 +535,7 @@ export default function SubmitFormPage() {
                     Signed in as: <span className="font-semibold">{account}</span>
                   </p>
                   <button
-                    onClick={async () => {
-                      const { signOut } = await import('@/lib/near');
-                      await signOut();
-                      setAccount(null);
-                    }}
+                    onClick={disconnectWallet}
                     className="text-sm text-red-600 hover:text-red-800"
                   >
                     Disconnect
@@ -627,6 +544,7 @@ export default function SubmitFormPage() {
 
                 {message && (
                   <div
+                    role="alert"
                     className={`mb-6 p-4 rounded-lg ${
                       message.type === 'success'
                         ? 'bg-green-100 text-green-800 border border-green-400'
@@ -642,7 +560,7 @@ export default function SubmitFormPage() {
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-8">
+                <form onSubmit={handleSubmit} autoComplete="off" aria-disabled={formDisabled ? 'true' : undefined} className={`space-y-8 ${formDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
                   {sections.map((section) => (
                     <div key={section}>
                       <h2 className="text-lg font-semibold text-gray-800 mb-6 pb-3 border-b-2 border-brand-200">
@@ -663,9 +581,14 @@ export default function SubmitFormPage() {
                     </div>
                   ))}
 
+                  <p className="text-xs text-gray-400 text-center">
+                    Your answers are encrypted and can only be read by the form creator.
+                    Your NEAR account ID and submission timestamp will be publicly recorded on the NEAR blockchain.
+                  </p>
+
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || formDisabled}
                     className="w-full bg-brand-600 text-white py-3 rounded-md font-medium hover:bg-brand-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                   >
                     {submitting ? 'Submitting...' : 'Submit Form'}

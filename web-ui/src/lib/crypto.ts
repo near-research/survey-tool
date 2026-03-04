@@ -1,7 +1,7 @@
 /**
  * Client-side EC01 encryption for form answers.
  *
- * Produces byte-identical output to the Rust encrypt_for_form() in
+ * Produces byte-identical output to the Rust encrypt_blob() in
  * wasi-near-forms-ark/src/crypto.rs so the WASI module can decrypt
  * using the same key derivation and EC01 format.
  *
@@ -12,10 +12,13 @@ import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { chacha20poly1305 } from '@noble/ciphers/chacha.js';
-import { randomBytes, bytesToHex, concatBytes } from '@noble/hashes/utils.js';
+import { randomBytes, bytesToHex, hexToBytes, concatBytes } from '@noble/hashes/utils.js';
 
 // Must match Rust constants exactly
 const EC01_MAGIC = new Uint8Array([0x45, 0x43, 0x30, 0x31]); // "EC01"
+
+/** Regex for a valid compressed secp256k1 public key (66 hex chars, starts with 02 or 03) */
+export const COMPRESSED_PUBKEY_REGEX = /^0[23][0-9a-fA-F]{64}$/;
 const DERIVATION_PREFIX = 'near-forms:v1:';
 const HKDF_INFO = 'near-forms:v1:ecdh';
 
@@ -32,7 +35,7 @@ const Point = secp256k1.Point;
  *
  * Matches Rust: form_pubkey = master_pubkey + SHA256("near-forms:v1:" + form_id) * G
  */
-function deriveFormPublicKey(masterPubKeyHex: string, formId: string): Uint8Array {
+export function deriveFormPublicKey(masterPubKeyHex: string, formId: string): Uint8Array {
   // Compute tweak: SHA256(prefix + form_id)
   const tweakInput = concatBytes(
     encoder.encode(DERIVATION_PREFIX),
@@ -61,7 +64,7 @@ function deriveFormPublicKey(masterPubKeyHex: string, formId: string): Uint8Arra
  *
  * Returns hex-encoded EC01 blob.
  */
-function encryptEC01(formPubKey: Uint8Array, plaintext: Uint8Array): string {
+export function encryptEC01(formPubKey: Uint8Array, plaintext: Uint8Array): string {
   // 1. Generate ephemeral keypair
   const ephemeralPriv = secp256k1.utils.randomSecretKey();
   const ephemeralPub = secp256k1.getPublicKey(ephemeralPriv, true); // compressed, 33 bytes
@@ -110,4 +113,62 @@ function bytesToBigInt(bytes: Uint8Array): bigint {
     result = (result << 8n) | BigInt(byte);
   }
   return result;
+}
+
+/**
+ * Generate an ephemeral secp256k1 keypair for encrypting ReadResponses output.
+ *
+ * The private key never leaves browser memory. Discard after decrypting the response.
+ */
+export function generateSessionKeypair(): { privateKey: Uint8Array; publicKeyHex: string } {
+  const privateKey = secp256k1.utils.randomSecretKey();
+  const publicKey = secp256k1.getPublicKey(privateKey, true); // compressed, 33 bytes
+  return { privateKey, publicKeyHex: bytesToHex(publicKey) };
+}
+
+/**
+ * Decrypt an EC01 blob using a private key.
+ *
+ * Mirror of encryptEC01: parses EC01 format, performs ECDH, derives key via HKDF,
+ * decrypts with ChaCha20-Poly1305.
+ *
+ * @param privateKey - 32-byte secret key (from generateSessionKeypair)
+ * @param encryptedHex - Hex-encoded EC01 blob
+ * @returns Decrypted plaintext bytes
+ */
+export function decryptEC01(privateKey: Uint8Array, encryptedHex: string): Uint8Array {
+  const encrypted = hexToBytes(encryptedHex);
+
+  // Validate EC01 header
+  const HEADER_SIZE = 4;
+  const PUBKEY_SIZE = 33;
+  const NONCE_SIZE = 12;
+  const TAG_SIZE = 16;
+  const MIN_SIZE = HEADER_SIZE + PUBKEY_SIZE + NONCE_SIZE + TAG_SIZE;
+
+  if (encrypted.length < MIN_SIZE) {
+    throw new Error(`EC01 data too short: ${encrypted.length} bytes, need at least ${MIN_SIZE}`);
+  }
+  if (!EC01_MAGIC.every((b, i) => encrypted[i] === b)) {
+    throw new Error('Invalid EC01 magic bytes');
+  }
+
+  // Parse ephemeral public key
+  const ephemeralPub = encrypted.slice(HEADER_SIZE, HEADER_SIZE + PUBKEY_SIZE);
+
+  // ECDH: shared_point = ephemeral_pubkey * privateKey
+  const sharedPoint = secp256k1.getSharedSecret(privateKey, ephemeralPub, true); // compressed
+  const sharedX = sharedPoint.slice(1); // x-coordinate only
+
+  // HKDF-SHA256: derive 32-byte key (same info string as Rust)
+  const key = hkdf(sha256, sharedX, undefined, encoder.encode(HKDF_INFO), 32);
+
+  // Extract nonce and ciphertext
+  const nonceStart = HEADER_SIZE + PUBKEY_SIZE;
+  const nonce = encrypted.slice(nonceStart, nonceStart + NONCE_SIZE);
+  const ciphertext = encrypted.slice(nonceStart + NONCE_SIZE);
+
+  // ChaCha20-Poly1305 decrypt
+  const cipher = chacha20poly1305(key, nonce);
+  return cipher.decrypt(ciphertext);
 }

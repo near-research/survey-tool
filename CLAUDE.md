@@ -9,7 +9,8 @@
 ```
 ┌─────────────┐                                            ┌─────────────┐
 │   Web UI    │────────▶ OutLayer (Transaction Mode)  ────▶│  WASI TEE   │
-│  (Next.js)  │         SubmitForm & ReadResponses         │   (Ark)     │
+│  (Next.js)  │    SubmitForm, ReadResponses &            │   (Ark)     │
+│             │         GetMasterPublicKey                │             │
 └─────────────┘                                            └─────────────┘
      (3000)                    ▲                                 │
                                │                                 │
@@ -32,7 +33,7 @@
 
 - Web UI (port 3000): Form submission & creator response dashboard (public)
 - OutLayer (TEE): Implicit authentication via blockchain transactions, runs WASI module
-- WASI Module: Validates encrypted submissions (SubmitForm), decrypts for creator (ReadResponses)
+- WASI Module: Validates encrypted submissions (SubmitForm), decrypts for creator (ReadResponses), exposes master public key (GetMasterPublicKey)
 - DB API (port 4001): Internal data layer, stores encrypted submissions, requires API_SECRET
 
 ## Components
@@ -82,7 +83,7 @@ cd db-api && cargo build --release
 cd web-ui && npm install && npm run build
 
 # Run locally with docker-compose
-docker-compose -f docker-compose.yml --env-file .env.testnet up -d
+docker-compose --env-file .env.testnet up -d
 
 # Or run individually
 cd db-api && cargo run                    # Port 4001 (internal only)
@@ -104,7 +105,12 @@ cargo run -p upload-fastfs -- \
 | `API_PORT`        | No       | Port (default: `4001`)                                  |
 | `API_SECRET`      | Yes      | Shared secret with WASI module                          |
 | `FORM_CREATOR_ID` | Yes      | NEAR account ID of form creator (e.g., `alice.testnet`) |
-| `FORM_TITLE`      | No       | Display title of the form (default: `My Form`)          |
+| `FORM_TITLE`           | No       | Display title of the form (default: `My Form`)          |
+| `CORS_ALLOWED_ORIGIN`  | Yes      | Allowed CORS origin (panics without it in production)   |
+| `DATABASE_POOL_SIZE`   | No       | PostgreSQL connection pool size (default: `5`)           |
+| `RATE_LIMIT_RPS`       | No       | Rate limit requests per second (default: `10`)           |
+| `RATE_LIMIT_BURST`     | No       | Rate limit burst size (default: `30`)                    |
+| `RATE_LIMIT_TRUST_PROXY` | No    | Trust `X-Forwarded-For` header (default: `false`)        |
 
 ### WASI Module (OutLayer Secrets)
 
@@ -129,6 +135,7 @@ Set these in OutLayer dashboard (NOT in .env):
 | `NEXT_PUBLIC_SECRETS_ACCOUNT_ID` | (empty)                            | OutLayer secrets scoped account ID (optional)                                      |
 | `NEXT_PUBLIC_USE_SECRETS`        | `true`                             | Enable OutLayer secrets configuration                                              |
 | `NEXT_PUBLIC_MASTER_PUBLIC_KEY`  | -                                  | Compressed secp256k1 public key (66-char hex, starts with 02/03) for client-side encryption |
+| `NEXT_PUBLIC_OUTLAYER_DEPOSIT_NEAR` | `0.025`                        | NEAR deposit per OutLayer transaction                                              |
 
 ## Key Files
 
@@ -138,19 +145,29 @@ Set these in OutLayer dashboard (NOT in .env):
 - `src/types.rs` - API types: Input, Output, Response, EncryptedSubmission
 - `src/crypto.rs` - EC01 decryption (ECDH + ChaCha20-Poly1305) with BIP32 key derivation
 - `src/db.rs` - HTTP client to fetch/store submissions from db-api
+- `src/validation.rs` - Input validation: EC01 format, NEAR account IDs, hex strings
+- `src/http_chunked.rs` - Low-level chunked HTTP POST via `wasi::http` (for large payloads)
 
 ### DB API (Rust)
 
-- `src/main.rs` - Axum router with 4 endpoints, API_SECRET middleware, form seeding
+- `src/main.rs` - Thin entrypoint: `main()` + `init_database()`
+- `src/lib.rs` - Types, handlers, middleware, `build_app()`, `RateLimiter` (all pub)
+- `tests/integration.rs` - Integration tests using `#[sqlx::test]` (requires PostgreSQL)
 - `migrations/20260226000001_forms_schema.sql` - PostgreSQL schema: forms + submissions tables
+- `migrations/20260303000001_not_null_timestamps.sql` - Add NOT NULL constraints to timestamps
 
 ### Web UI (Next.js)
 
 - `src/lib/near.ts` - NEAR wallet integration, OutLayer transaction-based calls (callOutLayer)
-- `src/pages/index.tsx` - Form listing page (public)
 - `src/lib/crypto.ts` - Client-side EC01 encryption (secp256k1 ECDH + ChaCha20-Poly1305) matching WASI decryption
+- `src/lib/types.ts` - Shared TypeScript interfaces (FormQuestion, FormData, AnswerValue, AnswerMap, etc.)
+- `src/lib/form-helpers.ts` - Pure functions: isVisible, resetHiddenAnswers, applyExclusiveMultiSelect, formatAnswer, getSortedResponses
+- `src/lib/hooks.ts` - `useWallet()` hook: SSR-safe wallet connection with account change callback
+- `src/pages/index.tsx` - Form listing page (public)
 - `src/pages/forms/[id].tsx` - Form submission page (public), encrypts client-side then calls `callOutLayer('SubmitForm', { encrypted_answers })`
 - `src/pages/responses.tsx` - Creator dashboard, calls `callOutLayer('ReadResponses', {})`, displays decrypted responses in table
+- `src/lib/crypto.test.ts` - 18 tests for EC01 encryption/decryption
+- `src/lib/helpers.test.ts` - 59 tests for form helpers and utility functions
 
 ## Data Flow
 
@@ -187,13 +204,13 @@ Set these in OutLayer dashboard (NOT in .env):
 
 ```bash
 # 1. Start all services
-docker-compose -f docker-compose.testnet.yml --env-file .env.testnet up -d
+docker-compose --env-file .env.testnet up -d
 
 # 2. Wait for db-api to seed the form (check logs)
 docker logs db-api
 
 # 3. Check form exists (using actual FORM_ID)
-curl http://localhost:4001/forms/daf14a0c-20f7-4199-a07b-c6456d53ef2d
+curl http://localhost:4001/v1/forms/daf14a0c-20f7-4199-a07b-c6456d53ef2d
 
 # 4. Test submission via web-ui (requires browser with NEAR testnet wallet)
 # Open http://localhost:3000/forms/your-form-id in browser
@@ -207,16 +224,32 @@ psql "postgresql://near_forms:password@localhost:5432/near_forms" \
   -c "SELECT submitter_id, submitted_at FROM submissions LIMIT 5;"
 ```
 
-### Component-Specific Tests
+### Component-Specific Tests (176 tests total)
 
 ```bash
-# Test db-api alone
-cd db-api
+# WASI module — 50 tests (19 crypto + 27 validation + 4 db)
+cd wasi-near-forms-ark
 cargo test
 
-# Test WASI module build
-cd wasi-near-forms-ark
-cargo build --target wasm32-wasip2 --release
+# DB API — 49 tests (20 unit + 29 integration, requires PostgreSQL)
+
+# Option A: Docker (portable, no local setup)
+docker-compose -f docker-compose.test.yml up -d
+cd db-api
+DATABASE_URL="postgresql://near_forms:testpass@localhost:5434/near_forms" cargo test
+docker-compose -f docker-compose.test.yml down
+
+# Option B: Local PostgreSQL (zero overhead, one-time setup)
+# First time only:
+psql -U $(whoami) -d postgres -c "CREATE ROLE near_forms WITH LOGIN PASSWORD 'testpass' CREATEDB;"
+psql -U $(whoami) -d postgres -c "CREATE DATABASE near_forms OWNER near_forms;"
+# Then:
+cd db-api
+DATABASE_URL="postgresql://near_forms:testpass@localhost:5432/near_forms" cargo test
+
+# Web UI — 77 tests (18 crypto + 59 helpers)
+cd web-ui
+npm test
 ```
 
 ## Common Issues

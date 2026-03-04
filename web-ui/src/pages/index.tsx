@@ -1,45 +1,11 @@
-import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-
-interface FormQuestion {
-  id: string;
-  label: string;
-  type: string;
-}
-
-interface FormData {
-  id: string;
-  title: string;
-  questions: FormQuestion[];
-}
+import type { FormData } from '@/lib/types';
+import { useFetchWithTimeout, getFormApiUrl } from '@/lib/hooks';
 
 export default function HomePage() {
-  const [form, setForm] = useState<FormData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Load form metadata on mount
-  useEffect(() => {
-    const loadForm = async () => {
-      try {
-        const dbApiUrl = process.env.NEXT_PUBLIC_DATABASE_API_URL || 'http://localhost:4001';
-        const formId = process.env.NEXT_PUBLIC_FORM_ID || '';
-        if (!formId) {
-          throw new Error('NEXT_PUBLIC_FORM_ID environment variable not set');
-        }
-        const response = await fetch(`${dbApiUrl}/forms/${formId}`);
-        if (!response.ok) throw new Error('Failed to load form');
-        const data = await response.json();
-        setForm(data);
-      } catch (error) {
-        console.error('Error loading form:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadForm();
-  }, []);
+  const formUrl = getFormApiUrl();
+  const { data: form, loading, error } = useFetchWithTimeout<FormData>(formUrl);
 
   if (loading) {
     return (
@@ -49,10 +15,10 @@ export default function HomePage() {
     );
   }
 
-  if (!form) {
+  if (error || !form) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100 flex items-center justify-center">
-        <p className="text-red-600">Failed to load form</p>
+        <p className="text-red-600">{error || 'Failed to load form'}</p>
       </div>
     );
   }

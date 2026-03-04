@@ -1,3 +1,6 @@
+# Docker Compose
+# Usage: docker-compose --env-file .env.testnet up -d
+
 services:
   # PostgreSQL database
   postgres:
@@ -7,7 +10,7 @@ services:
       POSTGRES_USER: near_forms
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in your .env file}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_testnet:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U near_forms"]
       interval: 5s
@@ -19,6 +22,7 @@ services:
     build:
       context: ./db-api
       dockerfile: Dockerfile
+    # Port exposed for local dev — in production, Railway/reverse proxy handles routing
     ports:
       - "4001:4001"
     environment:
@@ -28,11 +32,12 @@ services:
       FORM_CREATOR_ID: ${FORM_CREATOR_ID:?FORM_CREATOR_ID must be set in your .env file}
       FORM_TITLE: ${FORM_TITLE:-My Form}
       RUST_LOG: info
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:?CORS_ALLOWED_ORIGIN must be set in your .env file}
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4001/v1/health"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -43,9 +48,9 @@ services:
       context: ./web-ui
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_NETWORK_ID: mainnet
-        NEXT_PUBLIC_PROJECT_ID: ${NEXT_PUBLIC_PROJECT_ID:-your-account.near/near-forms}
-        NEXT_PUBLIC_OUTLAYER_CONTRACT: ${NEXT_PUBLIC_OUTLAYER_CONTRACT:-outlayer.near}
+        NEXT_PUBLIC_NETWORK_ID: testnet
+        NEXT_PUBLIC_PROJECT_ID: ${NEXT_PUBLIC_PROJECT_ID:-agency.testnet/near-forms}
+        NEXT_PUBLIC_OUTLAYER_CONTRACT: ${NEXT_PUBLIC_OUTLAYER_CONTRACT:-outlayer.testnet}
         NEXT_PUBLIC_SECRETS_PROFILE: ${NEXT_PUBLIC_SECRETS_PROFILE:-default}
         NEXT_PUBLIC_SECRETS_ACCOUNT_ID: ${NEXT_PUBLIC_SECRETS_ACCOUNT_ID:-}
         NEXT_PUBLIC_USE_SECRETS: ${NEXT_PUBLIC_USE_SECRETS:-true}
@@ -60,4 +65,4 @@ services:
         condition: service_healthy
 
 volumes:
-  postgres_data:
+  postgres_data_testnet:

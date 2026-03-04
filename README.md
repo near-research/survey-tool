@@ -19,23 +19,23 @@ Response Reading Flow:
 - **Web UI** (Next.js, port 3000): Form submission & response dashboard
 - **DB API** (Rust/Axum, port 4001): Internal data layer for encrypted submissions
 - **PostgreSQL**: Data persistence
-- **OutLayer WASI Module**: Encryption/decryption via TEE (external service)
+- **OutLayer WASI Module**: Validates encrypted submissions & decrypts for creator via TEE
 
 ## How It Works
 
 ### Submitting a Form
 
 1. User opens form at `http://localhost:3000/forms/{form-id}`
-2. Web UI fetches form metadata from db-api (`GET /forms/{form-id}`)
+2. Web UI fetches form metadata from db-api (`GET /v1/forms/{form-id}`)
 3. User fills out form and clicks "Submit"
-4. `callOutLayer('SubmitForm', { answers })` constructs a NEAR transaction
-5. NEAR wallet prompts user to approve the transaction
-6. OutLayer TEE executes WASI module with `signer_account_id = respondent`
-7. WASI module:
-   - Validates answers
-   - Encrypts using EC01 format (ECDH + ChaCha20-Poly1305)
-   - Stores encrypted blob in db-api via `POST /submissions`
-8. Confirmation returned to web UI
+4. Web UI encrypts answers **client-side**: derives form public key from `NEXT_PUBLIC_MASTER_PUBLIC_KEY`, encrypts via EC01 (ECDH + ChaCha20-Poly1305)
+5. `callOutLayer('SubmitForm', { encrypted_answers })` constructs a NEAR transaction (only ciphertext appears on-chain)
+6. NEAR wallet prompts user to approve the transaction
+7. OutLayer TEE executes WASI module with `signer_account_id = respondent`
+8. WASI module:
+   - Validates EC01 format (magic bytes, ephemeral pubkey, minimum size) — does **not** decrypt
+   - Stores encrypted blob in db-api via `POST /v1/submissions` with API_SECRET header
+9. Confirmation returned to web UI
 
 ### Viewing Responses (Creator Only)
 
@@ -86,7 +86,7 @@ cp .env.testnet.example .env.testnet
 #    - API_SECRET: a random secret (must match in WASI module)
 
 # 3. Start all services
-docker-compose -f docker-compose.testnet.yml --env-file .env.testnet up -d
+docker-compose --env-file .env.testnet up -d
 
 # 4. Open in browser
 #    - Form: http://localhost:3000
@@ -146,13 +146,18 @@ NEXT_PUBLIC_NETWORK_ID=testnet \
 
 ### DB API (Rust/Axum)
 
-| Variable          | Required | Description                     |
-| ----------------- | -------- | ------------------------------- |
-| `DATABASE_URL`    | Yes      | PostgreSQL connection string    |
-| `API_PORT`        | No       | Port (default: `4001`)          |
-| `API_SECRET`      | Yes      | Shared secret with WASI module  |
-| `FORM_CREATOR_ID` | Yes      | NEAR account ID of form creator |
-| `FORM_TITLE`      | Yes      | Display title of the form       |
+| Variable               | Required | Description                                          |
+| ---------------------- | -------- | ---------------------------------------------------- |
+| `DATABASE_URL`         | Yes      | PostgreSQL connection string                         |
+| `API_PORT`             | No       | Port (default: `4001`)                               |
+| `API_SECRET`           | Yes      | Shared secret with WASI module                       |
+| `FORM_CREATOR_ID`      | Yes      | NEAR account ID of form creator                      |
+| `FORM_TITLE`           | No       | Display title of the form (default: `My Form`)       |
+| `CORS_ALLOWED_ORIGIN`  | Yes      | Allowed CORS origin (e.g., `https://your-web-ui.app`) — panics without it in production |
+| `DATABASE_POOL_SIZE`   | No       | PostgreSQL connection pool size (default: `5`)       |
+| `RATE_LIMIT_RPS`       | No       | Rate limit requests per second (default: `10`)       |
+| `RATE_LIMIT_BURST`     | No       | Rate limit burst size (default: `30`)                |
+| `RATE_LIMIT_TRUST_PROXY` | No    | Trust `X-Forwarded-For` header (default: `false`)    |
 
 ### WASI Module (OutLayer Secrets — NOT .env)
 
@@ -167,12 +172,18 @@ Set these in the OutLayer dashboard:
 
 ### Web UI (Next.js)
 
-| Variable                       | Required | Description                                              |
-| ------------------------------ | -------- | -------------------------------------------------------- |
-| `NEXT_PUBLIC_NETWORK_ID`       | Yes      | NEAR network: `testnet` or `mainnet`                     |
-| `NEXT_PUBLIC_PROJECT_ID`       | Yes      | OutLayer project ID (e.g., `account.testnet/near-forms`) |
-| `NEXT_PUBLIC_DATABASE_API_URL` | Yes      | URL to db-api (e.g., `http://db-api:4001` in Docker)     |
-| `NEXT_PUBLIC_FORM_ID`          | Yes      | Same FORM_ID as db-api                                   |
+| Variable                         | Required | Description                                                                        |
+| -------------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_NETWORK_ID`         | Yes      | NEAR network: `testnet` or `mainnet`                                               |
+| `NEXT_PUBLIC_PROJECT_ID`         | Yes      | OutLayer project ID (e.g., `account.testnet/near-forms`)                           |
+| `NEXT_PUBLIC_OUTLAYER_CONTRACT`  | No       | OutLayer contract (`outlayer.near` for mainnet, `outlayer.testnet` for testnet)     |
+| `NEXT_PUBLIC_DATABASE_API_URL`   | Yes      | URL to db-api (e.g., `http://db-api:4001` in Docker)                               |
+| `NEXT_PUBLIC_FORM_ID`            | Yes      | Same FORM_ID as db-api                                                             |
+| `NEXT_PUBLIC_MASTER_PUBLIC_KEY`  | Yes      | Compressed secp256k1 public key (66-char hex) for client-side encryption           |
+| `NEXT_PUBLIC_OUTLAYER_DEPOSIT_NEAR` | No    | NEAR deposit per OutLayer transaction (default: `0.025`)                           |
+| `NEXT_PUBLIC_SECRETS_PROFILE`    | No       | OutLayer secrets configuration profile (default: `default`)                        |
+| `NEXT_PUBLIC_SECRETS_ACCOUNT_ID` | No       | OutLayer secrets scoped account ID                                                 |
+| `NEXT_PUBLIC_USE_SECRETS`        | No       | Enable OutLayer secrets configuration (default: `true`)                            |
 
 ## Security Model
 
